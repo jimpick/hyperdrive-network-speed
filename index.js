@@ -24,6 +24,8 @@ module.exports = function (archive, opts) {
     }, 500)
   }
 
+  if (archive.db) return speed // FIXME: short-circuit hyperdb
+
   archive.metadata.on('download', function (block, data) {
     totalTransfer.down += data.length
     ondownload(data.length)
