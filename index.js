@@ -24,20 +24,30 @@ module.exports = function (archive, opts) {
     }, 500)
   }
 
-  if (archive.db) return speed // FIXME: short-circuit hyperdb
+  if (archive.db) {
+    var db = archive.db
+    var trackedFeeds = {}
+    setInterval(checkFeeds, 500)
 
-  archive.metadata.on('download', function (block, data) {
-    totalTransfer.down += data.length
-    ondownload(data.length)
-  })
+    function checkFeeds () {
+      db.feeds.forEach(checkFeed)
+      db.contentFeeds.forEach(checkFeed)
 
-  archive.metadata.on('upload', function (block, data) {
-    totalTransfer.up += data.length
-    onupload(data.length)
-  })
+      function checkFeed (feed) {
+        if (!feed || !feed.key) return
+        var key = feed.key.toString('hex')
+        if (!trackedFeeds[key]) {
+          trackFeed(feed)
+          trackedFeeds[key] = true
+        }
+      }
+    }
+  } else {
+    trackFeed(archive.metadata)
 
-  if (archive.content) trackContent()
-  else archive.on('content', trackContent)
+    if (archive.content) trackContent()
+    else archive.on('content', trackContent)
+  }
 
   Object.defineProperty(speed, 'downloadSpeed', {
     enumerable: true,
@@ -62,12 +72,16 @@ module.exports = function (archive, opts) {
   return speed
 
   function trackContent () {
-    archive.content.on('download', function (block, data) {
+    trackFeed(archive.content)
+  }
+
+  function trackFeed (feed) {
+    feed.on('download', function (block, data) {
       totalTransfer.down += data.length
       ondownload(data.length)
     })
 
-    archive.content.on('upload', function (block, data) {
+    feed.on('upload', function (block, data) {
       totalTransfer.up += data.length
       onupload(data.length)
     })
